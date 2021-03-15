@@ -1,5 +1,5 @@
+import datetime
 from object_detection.protos import pipeline_pb2
-from object_detection.protos import image_resizer_pb2
 from object_detection import exporter
 import os
 import subprocess
@@ -12,25 +12,28 @@ from .graph_utils import remove_assert as f_remove_assert
 
 DetectionModel = namedtuple('DetectionModel', ['name', 'url', 'extract_dir'])
 
-INPUT_NAME='image_tensor'
-BOXES_NAME='detection_boxes'
-CLASSES_NAME='detection_classes'
-SCORES_NAME='detection_scores'
-MASKS_NAME='detection_masks'
-NUM_DETECTIONS_NAME='num_detections'
-FROZEN_GRAPH_NAME='frozen_inference_graph.pb'
-PIPELINE_CONFIG_NAME='pipeline.config'
-CHECKPOINT_PREFIX='model.ckpt'
+class Props:
+    INPUT_NAME = 'image_tensor'
+    BOXES_NAME = 'detection_boxes'
+    CLASSES_NAME = 'detection_classes'
+    SCORES_NAME = 'detection_scores'
+    MASKS_NAME = 'detection_masks'
+    NUM_DETECTIONS_NAME = 'num_detections'
+    FROZEN_GRAPH_NAME = 'frozen_inference_graph.pb'
+    PIPELINE_CONFIG_NAME = 'pipeline.config'
+    CHECKPOINT_NAME = 'model.ckpt'
+    OUTPUT_DIR = '../data/generated_model_{}'.format(datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3])
+
 
 
 def build_detection_graph(config, checkpoint,
         batch_size=1,
         score_threshold=None,
-        force_nms_cpu=True,
-        replace_relu6=True,
-        remove_assert=True,
+        force_nms_cpu=False,
+        replace_relu6=False,
+        remove_assert=False,
         input_shape=None,
-        output_dir='.generated_model'):
+        output_dir=Props.OUTPUT_DIR):
 
     config_path = config
     checkpoint_path = checkpoint
@@ -65,7 +68,7 @@ def build_detection_graph(config, checkpoint,
     with tf.Session(config=tf_config) as tf_sess:
         with tf.Graph().as_default() as tf_graph:
             exporter.export_inference_graph(
-                'image_tensor', 
+                Props.INPUT_NAME,
                 config, 
                 checkpoint_path, 
                 output_dir, 
@@ -74,7 +77,7 @@ def build_detection_graph(config, checkpoint,
 
     # read frozen graph from file
     frozen_graph = tf.GraphDef()
-    with open(os.path.join(output_dir, FROZEN_GRAPH_NAME), 'rb') as f:
+    with open(os.path.join(output_dir, Props.FROZEN_GRAPH_NAME), 'rb') as f:
         frozen_graph.ParseFromString(f.read())
 
     # apply graph modifications
@@ -86,8 +89,8 @@ def build_detection_graph(config, checkpoint,
         frozen_graph = f_remove_assert(frozen_graph)
 
     # get input names
-    input_names = [INPUT_NAME]
-    output_names = [BOXES_NAME, CLASSES_NAME, SCORES_NAME, NUM_DETECTIONS_NAME]
+    input_names = [Props.INPUT_NAME]
+    output_names = [Props.BOXES_NAME, Props.CLASSES_NAME, Props.SCORES_NAME, Props.NUM_DETECTIONS_NAME]
 
     # remove temporary directory
     subprocess.call(['rm', '-rf', output_dir])
